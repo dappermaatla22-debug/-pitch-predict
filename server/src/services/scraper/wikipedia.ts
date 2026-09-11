@@ -323,7 +323,6 @@ async function findTeamId(name: string): Promise<number | null> {
     "LEI": "RB Leipzig",
     "LEV": "Bayer 04 Leverkusen",
     "MAI": "1. FSV Mainz 05",
-    "MUN": "Borussia Mönchengladbach",
     "STP": "VfB Stuttgart",
     // Ligue 1
     "Paris SG": "Paris Saint-Germain",
