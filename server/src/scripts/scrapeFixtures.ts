@@ -8,9 +8,9 @@ function getCurrentSeason(): string {
   const month = now.getMonth() + 1;
   const year = now.getFullYear();
   if (month >= 7) {
-    return `${year}\u2013${year + 1}`;
+    return `${year}\u2013${(year + 1).toString().slice(-2)}`;
   } else {
-    return `${year - 1}\u2013${year}`;
+    return `${year - 1}\u2013${year.toString().slice(-2)}`;
   }
 }
 

@@ -271,9 +271,46 @@ function parseSportsSeries(wikitext: string): ParsedMatch[] {
 }
 
 async function findTeamId(name: string): Promise<number | null> {
+  // Cache to avoid repeated queries
+  if (!(findTeamId as any)._cache) (findTeamId as any)._cache = new Map<string, number | null>();
+  const cache = (findTeamId as any)._cache as Map<string, number | null>;
+  if (cache.has(name)) return cache.get(name)!;
+
+  // If cache is empty, preload all teams
+  if (cache.size === 0) {
+    console.log("  Preloading team cache...");
+    const allTeams = await prisma.team.findMany({ select: { id: true, name: true, shortName: true } });
+    for (const t of allTeams) {
+      cache.set(t.name, t.id);
+      if (t.shortName) cache.set(t.shortName, t.id);
+    }
+    console.log(`  Cached ${allTeams.length} teams (${cache.size} entries)`);
+    if (cache.has(name)) return cache.get(name)!;
+  }
+
   const aliases: Record<string, string> = {
     // England - PL
     "Brighton & Hove Albion": "Brighton & Hove Albion",
+    "ARS": "Arsenal",
+    "AVL": "Aston Villa",
+    "BOU": "AFC Bournemouth",
+    "BRE": "Brentford",
+    "BHA": "Brighton & Hove Albion",
+    "CHE": "Chelsea",
+    "COV": "Coventry City",
+    "CRY": "Crystal Palace",
+    "EVE": "Everton",
+    "FUL": "Fulham",
+    "HUL": "Hull City",
+    "IPS": "Ipswich Town",
+    "LEE": "Leeds United",
+    "LIV": "Liverpool",
+    "MCI": "Manchester City",
+    "MUN": "Manchester United",
+    "NEW": "Newcastle United",
+    "NFO": "Nottingham Forest",
+    "SUN": "Sunderland",
+    "TOT": "Tottenham Hotspur",
     // La Liga
     "Celta Vigo": "RC Celta de Vigo",
     // Serie A
@@ -283,6 +320,11 @@ async function findTeamId(name: string): Promise<number | null> {
     "Bayer Leverkusen": "Bayer 04 Leverkusen",
     "Mainz 05": "1. FSV Mainz 05",
     "Stuttgart": "VfB Stuttgart",
+    "LEI": "RB Leipzig",
+    "LEV": "Bayer 04 Leverkusen",
+    "MAI": "1. FSV Mainz 05",
+    "MUN": "Borussia Mönchengladbach",
+    "STP": "VfB Stuttgart",
     // Ligue 1
     "Paris SG": "Paris Saint-Germain",
     "Rennes": "Stade Rennais F.C.",
@@ -322,30 +364,32 @@ async function findTeamId(name: string): Promise<number | null> {
   const searchName = aliases[name] || name;
 
   let result = await prisma.$queryRawUnsafe<{ id: number }[]>(
-    `SELECT id FROM Team WHERE LOWER(name) = LOWER(?) LIMIT 1`,
+    `SELECT id FROM "Team" WHERE LOWER(name) = LOWER($1) LIMIT 1`,
     searchName,
   );
   if (result.length > 0) return result[0].id;
 
   result = await prisma.$queryRawUnsafe<{ id: number }[]>(
-    `SELECT id FROM Team WHERE LOWER(shortName) = LOWER(?) LIMIT 1`,
+    `SELECT id FROM "Team" WHERE LOWER("shortName") = LOWER($1) LIMIT 1`,
     searchName,
   );
   if (result.length > 0) return result[0].id;
 
   if (searchName !== name) {
     result = await prisma.$queryRawUnsafe<{ id: number }[]>(
-      `SELECT id FROM Team WHERE LOWER(name) = LOWER(?) LIMIT 1`,
+      `SELECT id FROM "Team" WHERE LOWER(name) = LOWER($1) LIMIT 1`,
       name,
     );
     if (result.length > 0) return result[0].id;
   }
 
   result = await prisma.$queryRawUnsafe<{ id: number }[]>(
-    `SELECT id FROM Team WHERE name LIKE ? LIMIT 1`,
+    `SELECT id FROM "Team" WHERE name LIKE $1 LIMIT 1`,
     `%${searchName}%`,
   );
-  return result.length > 0 ? result[0].id : null;
+  const id = result.length > 0 ? result[0].id : null;
+  cache.set(name, id);
+  return id;
 }
 
 export async function scrapeLeagueResults(
@@ -409,6 +453,8 @@ export async function scrapeLeagueResults(
     existingFixtures.map((f) => `${f.homeTeamId}-${f.awayTeamId}`),
   );
 
+  const fixturesToCreate: any[] = [];
+
   for (const match of allMatches) {
     const homeTeamId = await findTeamId(match.homeTeam);
     const awayTeamId = await findTeamId(match.awayTeam);
@@ -425,30 +471,41 @@ export async function scrapeLeagueResults(
       continue;
     }
 
+    const hasScore = match.homeScore !== null && match.awayScore !== null;
+    fixturesToCreate.push({
+      seasonId,
+      leagueId,
+      homeTeamId,
+      awayTeamId,
+      homeScore: match.homeScore,
+      awayScore: match.awayScore,
+      date: match.date || new Date(),
+      status: hasScore ? "finished" : "upcoming",
+      matchday: match.matchday || null,
+    });
+    existingSet.add(key);
+  }
+
+  // Batch insert in chunks of 100
+  const BATCH_SIZE = 100;
+  for (let i = 0; i < fixturesToCreate.length; i += BATCH_SIZE) {
+    const batch = fixturesToCreate.slice(i, i + BATCH_SIZE);
     try {
-      const hasScore = match.homeScore !== null && match.awayScore !== null;
-      await prisma.fixture.create({
-        data: {
-          seasonId,
-          leagueId,
-          homeTeamId,
-          awayTeamId,
-          homeScore: match.homeScore,
-          awayScore: match.awayScore,
-          date: match.date || new Date(),
-          status: hasScore ? "finished" : "upcoming",
-          matchday: match.matchday || null,
-        },
-      });
-      existingSet.add(key);
-      created++;
+      await prisma.fixture.createMany({ data: batch, skipDuplicates: true });
+      created += batch.length;
+      console.log(`  Inserted batch ${Math.floor(i / BATCH_SIZE) + 1}: ${batch.length} fixtures`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("Unique constraint")) {
-        skipped++;
-      } else {
-        errors.push(`Error creating fixture ${match.homeTeam} vs ${match.awayTeam}: ${msg}`);
-        skipped++;
+      errors.push(`Batch insert error: ${msg}`);
+      // Fall back to individual inserts for this batch
+      for (const f of batch) {
+        try {
+          await prisma.fixture.create({ data: f });
+          created++;
+        } catch (e2) {
+          const m2 = e2 instanceof Error ? e2.message : String(e2);
+          if (m2.includes("Unique constraint")) { skipped++; } else { errors.push(`Insert error: ${m2}`); skipped++; }
+        }
       }
     }
   }

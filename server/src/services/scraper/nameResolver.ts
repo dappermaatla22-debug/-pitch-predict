@@ -80,7 +80,7 @@ export async function findTeamByName(input: string): Promise<{ id: number } | nu
 
   for (const variant of variants) {
     const team = await prisma.$queryRawUnsafe<{ id: number }[]>(
-      `SELECT id FROM Team WHERE LOWER(name) = LOWER(?) OR LOWER(shortName) = LOWER(?) LIMIT 1`,
+      `SELECT id FROM "Team" WHERE LOWER(name) = LOWER($1) OR LOWER("shortName") = LOWER($2) LIMIT 1`,
       variant, variant,
     );
     if (team.length > 0) return { id: team[0].id };
