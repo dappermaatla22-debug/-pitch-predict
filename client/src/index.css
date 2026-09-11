@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-midnight: #0A0E17;
+    --color-carbon: #12161F;
+    --color-carbon-elevated: #1A1F2A;
+    --color-cyan-pulse: #22D3EE;
+    --color-cyan-hover: #0891B2;
+    --color-prime: #FBBF24;
+  }
+
+  body {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #0A0E17;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #1A1F2A;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #22D3EE;
+  }
+}

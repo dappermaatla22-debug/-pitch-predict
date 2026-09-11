@@ -1,0 +1,145 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── Pipeline 1: Wikidata ───────────────────────────────────────
+
+model League {
+  id            Int      @id @default(autoincrement())
+  wikidataId    String?  @unique
+  name          String
+  country       String
+  confederation String   // UEFA, CONMEBOL, CAF, AFC, CONCACAF, OFC
+  tier          Int      @default(1)
+  slug          String   @unique
+  logoUrl       String?
+  wikipediaPage String?
+  scraperType   String   @default("teamSeason") // teamSeason, leagueMatrix, european
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  seasons  Season[]
+  teams    Team[]
+  fixtures Fixture[]
+
+  @@index([confederation])
+  @@index([country])
+}
+
+model Team {
+  id            Int      @id @default(autoincrement())
+  wikidataId    String?  @unique
+  name          String
+  shortName     String?
+  slug          String   @unique
+  country       String
+  logoUrl       String?
+  founded       Int?
+  leagueId      Int?
+  wikipediaName String?
+  aliases       String?
+
+  attackRating  Float    @default(1.0)
+  defenseRating Float    @default(1.0)
+  homeAdvantage Float    @default(1.0)
+  lastRatedAt   DateTime?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  league       League?    @relation(fields: [leagueId], references: [id])
+  homeFixtures Fixture[]  @relation("HomeTeam")
+  awayFixtures Fixture[]  @relation("AwayTeam")
+
+  @@index([leagueId])
+  @@index([name])
+}
+
+// ─── Pipeline 2: Wikipedia ──────────────────────────────────────
+
+model Season {
+  id            Int       @id @default(autoincrement())
+  leagueId      Int
+  name          String
+  startYear     Int
+  endYear       Int
+  wikipediaPage String?
+  lastScraped   DateTime?
+  fixtureCount  Int       @default(0)
+  resultCount   Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  league   League    @relation(fields: [leagueId], references: [id])
+  fixtures Fixture[]
+
+  @@unique([leagueId, name])
+  @@index([leagueId])
+}
+
+model Fixture {
+  id            Int       @id @default(autoincrement())
+  seasonId      Int
+  leagueId      Int
+  homeTeamId    Int
+  awayTeamId    Int
+  matchday      Int?
+  date          DateTime
+  time          String?
+  homeScore     Int?
+  awayScore     Int?
+  status        String    @default("upcoming") // upcoming, finished, postponed, cancelled
+  venue         String?
+  attendance    Int?
+  referee       String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  season      Season      @relation(fields: [seasonId], references: [id])
+  league      League      @relation(fields: [leagueId], references: [id])
+  homeTeam    Team        @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeam    Team        @relation("AwayTeam", fields: [awayTeamId], references: [id])
+  predictions Prediction[]
+
+  @@unique([seasonId, homeTeamId, awayTeamId])
+  @@index([date])
+  @@index([leagueId, date])
+  @@index([status])
+}
+
+// ─── Prediction Engine Output ───────────────────────────────────
+
+model Prediction {
+  id            Int       @id @default(autoincrement())
+  fixtureId     Int
+  market        String
+  probabilities Json
+  topPick       String
+  confidence    Float
+  modelVersion  String?
+  createdAt     DateTime  @default(now())
+
+  fixture Fixture         @relation(fields: [fixtureId], references: [id])
+  result  PredictionResult?
+
+  @@unique([fixtureId, market])
+  @@index([fixtureId])
+  @@index([confidence])
+}
+
+model PredictionResult {
+  id            Int       @id @default(autoincrement())
+  predictionId  Int       @unique
+  actualOutcome String
+  wasCorrect    Boolean
+  checkedAt     DateTime  @default(now())
+
+  prediction Prediction @relation(fields: [predictionId], references: [id])
+}

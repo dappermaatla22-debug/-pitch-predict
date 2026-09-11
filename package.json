@@ -1,0 +1,19 @@
+{
+  "name": "pitch-predict",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:client": "cd client && npm run dev",
+    "dev:server": "cd server && npm run dev",
+    "build": "cd client && npm run build",
+    "db:push": "cd server && npx prisma db push",
+    "db:generate": "cd server && npx prisma generate",
+    "db:seed": "cd server && npx tsx src/scripts/seed.ts",
+    "scrape:teams": "cd server && npx tsx src/scripts/scrapeTeams.ts",
+    "scrape:fixtures": "cd server && npx tsx src/scripts/scrapeFixtures.ts",
+    "predict": "cd server && npx tsx src/scripts/generatePredictions.ts"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

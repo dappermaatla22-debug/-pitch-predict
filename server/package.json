@@ -1,0 +1,37 @@
+{
+  "name": "pitch-predict-server",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npx tsx watch src/index.ts",
+    "build": "npx tsc",
+    "start": "node dist/index.js",
+    "db:push": "npx prisma db push",
+    "db:seed": "npx tsx src/scripts/seed.ts",
+    "db:studio": "npx prisma studio",
+    "scrape:teams": "npx tsx src/scripts/scrapeTeams.ts",
+    "scrape:rematch": "npx tsx src/scripts/rematchLeagues.ts",
+    "scrape:fixtures": "npx tsx src/scripts/scrapeFixtures.ts",
+    "predict": "npx tsx src/scripts/generatePredictions.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.10.1",
+    "axios": "^1.7.9",
+    "cheerio": "^1.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.12.0",
+    "@types/node-cron": "^3.0.11",
+    "better-sqlite3": "^11.8.1",
+    "prisma": "^6.10.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}
