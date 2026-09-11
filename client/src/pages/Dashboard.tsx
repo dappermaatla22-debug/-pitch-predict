@@ -1,96 +1,129 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { api } from "../lib/api.ts";
-import { formatConfidence, formatDate, formatScore } from "../lib/format.ts";
-import type { Prediction } from "../types/index.ts";
+import { motion } from "framer-motion";
+import { api } from "../lib/api";
+import AIPickCard from "../components/AIPickCard";
+import MatchCard from "../components/MatchCard";
+import StatCard from "../components/StatCard";
+import EmptyState from "../components/EmptyState";
+import { SkeletonPickList, SkeletonList } from "../components/LoadingSkeleton";
+import type { Prediction, BestPick } from "../types";
 
 export default function Dashboard() {
+  const [bestPicks, setBestPicks] = useState<BestPick[]>([]);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
+  const [stats, setStats] = useState<{
+    total: number;
+    withResults: number;
+    correct: number;
+    accuracy: number;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.predictions
-      .top({ limit: "50" })
-      .then(setPredictions)
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    const today = new Date().toISOString().split("T")[0];
+    Promise.all([
+      api.predictions.bestPicks(today, 6).catch(() => []),
+      api.predictions.top({ limit: "20", status: "upcoming" }).catch(() => []),
+      api.predictions.accuracy().catch(() => null),
+    ]).then(([picks, preds, acc]) => {
+      setBestPicks(picks);
+      setPredictions(preds);
+      setStats(acc);
+      setLoading(false);
+    });
   }, []);
 
   return (
-    <div>
-      <h2 className="font-heading text-2xl font-bold text-white mb-6">
-        Top Predictions
-      </h2>
+    <div className="space-y-8">
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+      >
+        <h1 className="font-heading text-2xl font-bold text-white md:text-3xl">
+          Dashboard
+        </h1>
+        <p className="mt-1 text-sm text-gray-500">
+          AI-powered football predictions updated in real-time
+        </p>
+      </motion.div>
 
-      {loading && (
-        <div className="space-y-3">
-          {Array.from({ length: 10 }).map((_, i) => (
-            <div
-              key={i}
-              className="h-20 animate-pulse rounded-lg bg-carbon-elevated"
-            />
-          ))}
+      <div>
+        <div className="mb-4 flex items-center gap-2">
+          <svg className="h-5 w-5 text-cyan-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
+          </svg>
+          <h2 className="font-heading text-lg font-semibold text-white">
+            PITCH PREDICT AI
+          </h2>
+          <span className="badge-prime">Best Picks Today</span>
         </div>
-      )}
 
-      {!loading && predictions.length === 0 && (
-        <div className="rounded-lg border border-carbon-elevated bg-carbon p-12 text-center">
-          <p className="text-gray-500">
-            No predictions yet. Run the prediction engine to generate picks.
-          </p>
-        </div>
-      )}
-
-      <div className="space-y-2">
-        {predictions.map((pred) => {
-          const fixture = pred.fixture;
-          if (!fixture) return null;
-          return (
-            <Link
-              key={pred.id}
-              to={`/match/${fixture.id}`}
-              className="flex items-center gap-4 rounded-lg border border-carbon-elevated bg-carbon p-4 transition-colors hover:border-cyan-pulse/30 hover:bg-carbon-elevated"
-            >
-              <div className="min-w-[160px] text-xs text-gray-500">
-                {formatDate(fixture.date)}
-                {fixture.time && (
-                  <span className="ml-2">{fixture.time}</span>
-                )}
-              </div>
-              <div className="flex flex-1 items-center gap-3">
-                <span className="font-medium text-white">
-                  {fixture.homeTeam.shortName || fixture.homeTeam.name}
-                </span>
-                <span className="text-gray-600">vs</span>
-                <span className="font-medium text-white">
-                  {fixture.awayTeam.shortName || fixture.awayTeam.name}
-                </span>
-              </div>
-              <div className="text-xs text-gray-500 w-20 text-right">
-                {formatScore(fixture.homeScore, fixture.awayScore)}
-              </div>
-              <div className="w-24 text-center">
-                <span className="text-xs font-medium text-gray-400">
-                  {pred.market}
-                </span>
-                <div className="text-sm font-semibold text-cyan-pulse">
-                  {pred.topPick}
-                </div>
-              </div>
-              <div
-                className={`w-16 text-right font-heading text-lg font-bold ${
-                  pred.confidence >= 0.7
-                    ? "text-prime"
-                    : pred.confidence >= 0.5
-                      ? "text-cyan-pulse"
-                      : "text-gray-400"
-                }`}
+        {loading ? (
+          <SkeletonPickList count={3} />
+        ) : bestPicks.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {bestPicks.map((pick, i) => (
+              <motion.div
+                key={pick.fixture.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.1 }}
               >
-                {formatConfidence(pred.confidence)}
-              </div>
-            </Link>
-          );
-        })}
+                <AIPickCard pick={pick} />
+              </motion.div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            title="No picks for today"
+            description="PITCH PREDICT AI is analyzing today's fixtures. Check back closer to kick-off times."
+          />
+        )}
+      </div>
+
+      {stats && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4"
+        >
+          <StatCard label="Model Accuracy" value={Math.round(stats.accuracy * 100)} suffix="%" color="win" />
+          <StatCard label="Total Predictions" value={stats.total} color="cyan" />
+          <StatCard label="Fixtures Analyzed" value={stats.withResults} color="prime" />
+          <StatCard label="Correct Picks" value={stats.correct} color="gray" />
+        </motion.div>
+      )}
+
+      <div>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="font-heading text-lg font-semibold text-white">
+            Upcoming Predictions
+          </h2>
+        </div>
+
+        {loading ? (
+          <SkeletonList count={5} />
+        ) : predictions.length > 0 ? (
+          <div className="space-y-2">
+            {predictions.map((pred, i) => (
+              <motion.div
+                key={pred.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+              >
+                {pred.fixture && <MatchCard fixture={pred.fixture} />}
+              </motion.div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            title="No upcoming predictions"
+            description="PITCH PREDICT AI hasn't generated predictions for upcoming fixtures yet."
+          />
+        )}
       </div>
     </div>
   );

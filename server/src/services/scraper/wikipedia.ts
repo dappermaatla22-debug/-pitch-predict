@@ -426,6 +426,7 @@ export async function scrapeLeagueResults(
     }
 
     try {
+      const hasScore = match.homeScore !== null && match.awayScore !== null;
       await prisma.fixture.create({
         data: {
           seasonId,
@@ -435,7 +436,7 @@ export async function scrapeLeagueResults(
           homeScore: match.homeScore,
           awayScore: match.awayScore,
           date: match.date || new Date(),
-          status: "finished",
+          status: hasScore ? "finished" : "upcoming",
           matchday: match.matchday || null,
         },
       });

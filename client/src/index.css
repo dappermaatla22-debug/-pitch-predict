@@ -12,12 +12,19 @@
     --color-prime: #FBBF24;
   }
 
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
   body {
     font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   ::-webkit-scrollbar {
     width: 6px;
+    height: 6px;
   }
 
   ::-webkit-scrollbar-track {
@@ -31,5 +38,72 @@
 
   ::-webkit-scrollbar-thumb:hover {
     background: #22D3EE;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply rounded-xl border border-white/[0.06] bg-carbon/80 backdrop-blur-xl shadow-glass;
+  }
+
+  .glass-card-hover {
+    @apply glass-card transition-all duration-300 hover:border-cyan-pulse/20 hover:shadow-glow hover:-translate-y-0.5;
+  }
+
+  .glass-card-interactive {
+    @apply glass-card-hover cursor-pointer active:scale-[0.98];
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-cyan-pulse to-cyan-hover bg-clip-text text-transparent;
+  }
+
+  .gradient-text-prime {
+    @apply bg-gradient-to-r from-prime to-amber-300 bg-clip-text text-transparent;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+
+  .badge-cyan {
+    @apply badge bg-cyan-pulse/10 text-cyan-pulse border border-cyan-pulse/20;
+  }
+
+  .badge-prime {
+    @apply badge bg-prime/10 text-prime border border-prime/20;
+  }
+
+  .badge-win {
+    @apply badge bg-win/10 text-win border border-win/20;
+  }
+
+  .badge-draw {
+    @apply badge bg-draw/10 text-draw border border-draw/20;
+  }
+
+  .badge-loss {
+    @apply badge bg-loss/10 text-loss border border-loss/20;
+  }
+
+  .skeleton {
+    @apply animate-shimmer rounded-lg bg-gradient-to-r from-carbon-elevated via-carbon-light to-carbon-elevated;
+    background-size: 200% 100%;
+  }
+
+  .btn-primary {
+    @apply rounded-lg bg-cyan-pulse px-4 py-2 font-medium text-midnight transition-all hover:bg-cyan-hover hover:shadow-glow active:scale-95;
+  }
+
+  .btn-secondary {
+    @apply rounded-lg border border-white/10 bg-carbon-elevated px-4 py-2 font-medium text-gray-200 transition-all hover:border-cyan-pulse/30 hover:text-white active:scale-95;
+  }
+
+  .input-field {
+    @apply rounded-lg border border-white/10 bg-carbon-elevated px-3 py-2 text-sm text-gray-200 placeholder-gray-500 outline-none transition-all focus:border-cyan-pulse/50 focus:ring-1 focus:ring-cyan-pulse/20;
+  }
+
+  .select-field {
+    @apply input-field appearance-none bg-[url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236B7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E")] bg-[length:12px] bg-[right_8px_center] bg-no-repeat pr-8;
   }
 }

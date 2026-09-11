@@ -27,7 +27,7 @@ async function main() {
     include: {
       _count: { select: { fixtures: true } },
       fixtures: {
-        where: { status: "finished" },
+        where: { status: { in: ["finished", "upcoming"] } },
         include: { predictions: true },
       },
     },
@@ -35,17 +35,20 @@ async function main() {
   });
 
   for (const league of leagues) {
-    const finished = league.fixtures.length;
+    const total = league.fixtures.length;
+    const finished = league.fixtures.filter((f) => f.status === "finished").length;
+    const upcoming = league.fixtures.filter((f) => f.status === "upcoming").length;
     const withPredictions = league.fixtures.filter((f) => f.predictions.length > 0).length;
     const totalPredictions = league.fixtures.reduce((sum, f) => sum + f.predictions.length, 0);
-    if (finished > 0) {
-      console.log(`  ${league.name}: ${withPredictions}/${finished} fixtures predicted (${totalPredictions} predictions)`);
+    if (total > 0) {
+      console.log(`  ${league.name}: ${finished} finished, ${upcoming} upcoming | ${withPredictions}/${total} predicted (${totalPredictions} predictions)`);
     }
   }
 
   const totalPredictions = await prisma.prediction.count();
-  const totalFixtures = await prisma.fixture.count({ where: { status: "finished" } });
-  console.log(`\n  Total: ${totalPredictions} predictions for ${totalFixtures} finished fixtures`);
+  const totalFinished = await prisma.fixture.count({ where: { status: "finished" } });
+  const totalUpcoming = await prisma.fixture.count({ where: { status: "upcoming" } });
+  console.log(`\n  Total: ${totalPredictions} predictions | ${totalFinished} finished, ${totalUpcoming} upcoming fixtures`);
 
   // Show top predictions
   console.log("\n=== Top 10 Predictions (by confidence) ===\n");

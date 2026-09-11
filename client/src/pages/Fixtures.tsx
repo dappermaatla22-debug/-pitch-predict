@@ -1,194 +1,201 @@
-import { useEffect, useState, useCallback } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { api } from "../lib/api.ts";
-import { formatDate, formatScore, formatConfidence } from "../lib/format.ts";
-import type { Fixture, League } from "../types/index.ts";
-
-const PAGE_SIZE = 50;
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { motion } from "framer-motion";
+import { api } from "../lib/api";
+import MatchCard from "../components/MatchCard";
+import DatePresetBar from "../components/DatePresetBar";
+import LeagueBadge from "../components/LeagueBadge";
+import EmptyState from "../components/EmptyState";
+import { SkeletonList } from "../components/LoadingSkeleton";
+import type { League, Fixture } from "../types";
 
 export default function Fixtures() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [leagues, setLeagues] = useState<League[]>([]);
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [leagues, setLeagues] = useState<League[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const leagueFilter = searchParams.get("league") || "";
-  const dateFilter = searchParams.get("date") || "";
-  const confidenceFilter = searchParams.get("minConfidence") || "";
+  const league = searchParams.get("league") || "";
+  const date = searchParams.get("date") || "";
+  const status = searchParams.get("status") || "upcoming";
+  const page = parseInt(searchParams.get("page") || "1");
+  const PAGE_SIZE = 30;
 
   useEffect(() => {
-    api.leagues.list().then(setLeagues).catch(console.error);
+    api.leagues.list().then(setLeagues).catch(() => {});
   }, []);
 
-  const loadFixtures = useCallback(() => {
+  useEffect(() => {
     setLoading(true);
-    const params: Record<string, string> = {};
-    if (leagueFilter) params.league = leagueFilter;
-    if (dateFilter) params.date = dateFilter;
-    params.limit = String(PAGE_SIZE);
-    params.offset = String((page - 1) * PAGE_SIZE);
+    const params: Record<string, string> = {
+      limit: String(PAGE_SIZE),
+      offset: String((page - 1) * PAGE_SIZE),
+      status: status,
+    };
+    if (league) params.league = league;
+    if (date) params.date = date;
 
-    api.fixtures
-      .list(params)
-      .then((res: any) => {
-        setFixtures(res.fixtures || res);
-        setTotal(res.total || (res.fixtures || res).length);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [leagueFilter, dateFilter, page]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [leagueFilter, dateFilter]);
-
-  useEffect(() => {
-    loadFixtures();
-  }, [loadFixtures]);
-
-  const filtered = confidenceFilter
-    ? fixtures.filter((f) =>
-        f.predictions.some(
-          (p) => p.confidence >= parseFloat(confidenceFilter),
-        ),
-      )
-    : fixtures;
+    api.fixtures.list(params).then((res) => {
+      if ("fixtures" in res) {
+        setFixtures(res.fixtures);
+        setTotal(res.total);
+      }
+      setLoading(false);
+    }).catch(() => {
+      setFixtures([]);
+      setTotal(0);
+      setLoading(false);
+    });
+  }, [league, date, status, page]);
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
+  function setParam(key: string, value: string) {
+    const p = new URLSearchParams(searchParams);
+    if (value) {
+      p.set(key, value);
+    } else {
+      p.delete(key);
+    }
+    p.delete("page");
+    setSearchParams(p);
+  }
+
   return (
-    <div>
-      <h2 className="font-heading text-2xl font-bold text-white mb-6">
-        Fixtures
-      </h2>
+    <div className="space-y-6">
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+      >
+        <h1 className="font-heading text-2xl font-bold text-white md:text-3xl">
+          Fixtures
+        </h1>
+        <p className="mt-1 text-sm text-gray-500">
+          {total} {status === "upcoming" ? "upcoming" : status === "finished" ? "completed" : ""} fixtures
+        </p>
+      </motion.div>
 
-      <div className="mb-6 flex flex-wrap gap-3">
-        <select
-          value={leagueFilter}
-          onChange={(e) => {
-            const p = new URLSearchParams(searchParams);
-            if (e.target.value) p.set("league", e.target.value);
-            else p.delete("league");
-            setSearchParams(p);
-          }}
-          className="rounded-md border border-carbon-elevated bg-carbon px-3 py-1.5 text-sm text-gray-300 focus:border-cyan-pulse focus:outline-none"
-        >
-          <option value="">All leagues</option>
-          {leagues.map((l) => (
-            <option key={l.slug} value={l.slug}>
-              {l.name}
-            </option>
-          ))}
-        </select>
-
-        <input
-          type="date"
-          value={dateFilter}
-          onChange={(e) => {
-            const p = new URLSearchParams(searchParams);
-            if (e.target.value) p.set("date", e.target.value);
-            else p.delete("date");
-            setSearchParams(p);
-          }}
-          className="rounded-md border border-carbon-elevated bg-carbon px-3 py-1.5 text-sm text-gray-300 focus:border-cyan-pulse focus:outline-none"
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.1 }}
+        className="space-y-3"
+      >
+        <DatePresetBar
+          value={date}
+          onChange={(d) => setParam("date", d)}
         />
 
-        <select
-          value={confidenceFilter}
-          onChange={(e) => {
-            const p = new URLSearchParams(searchParams);
-            if (e.target.value) p.set("minConfidence", e.target.value);
-            else p.delete("minConfidence");
-            setSearchParams(p);
-          }}
-          className="rounded-md border border-carbon-elevated bg-carbon px-3 py-1.5 text-sm text-gray-300 focus:border-cyan-pulse focus:outline-none"
-        >
-          <option value="">Any confidence</option>
-          <option value="0.5">50%+ only</option>
-          <option value="0.6">60%+ only</option>
-          <option value="0.7">70%+ only</option>
-        </select>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setParam("status", "upcoming")}
+            className={`relative rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+              status === "upcoming" ? "text-midnight" : "text-gray-400 hover:text-gray-200"
+            }`}
+          >
+            {status === "upcoming" && (
+              <motion.div
+                layoutId="statusTab"
+                className="absolute inset-0 rounded-lg bg-cyan-pulse"
+                transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+              />
+            )}
+            <span className="relative">Upcoming</span>
+          </button>
+          <button
+            onClick={() => setParam("status", "finished")}
+            className={`relative rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+              status === "finished" ? "text-midnight" : "text-gray-400 hover:text-gray-200"
+            }`}
+          >
+            {status === "finished" && (
+              <motion.div
+                layoutId="statusTab"
+                className="absolute inset-0 rounded-lg bg-cyan-pulse"
+                transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+              />
+            )}
+            <span className="relative">Finished</span>
+          </button>
+          <button
+            onClick={() => setParam("status", "")}
+            className={`relative rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+              status === "" ? "text-midnight" : "text-gray-400 hover:text-gray-200"
+            }`}
+          >
+            {status === "" && (
+              <motion.div
+                layoutId="statusTab"
+                className="absolute inset-0 rounded-lg bg-cyan-pulse"
+                transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
+              />
+            )}
+            <span className="relative">All</span>
+          </button>
+        </div>
 
-        <span className="self-center text-xs text-gray-500">
-          {total} total fixtures
-        </span>
-      </div>
-
-      {loading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 15 }).map((_, i) => (
-            <div
-              key={i}
-              className="h-16 animate-pulse rounded-lg bg-carbon-elevated"
+        <div className="flex flex-wrap gap-1.5">
+          <LeagueBadge
+            name="All"
+            active={!league}
+            onClick={() => setParam("league", "")}
+          />
+          {leagues.map((l) => (
+            <LeagueBadge
+              key={l.id}
+              name={l.name}
+              logoUrl={l.logoUrl}
+              active={league === l.slug}
+              onClick={() => setParam("league", l.slug)}
             />
           ))}
         </div>
-      ) : filtered.length === 0 ? (
-        <div className="rounded-lg border border-carbon-elevated bg-carbon p-12 text-center">
-          <p className="text-gray-500">No fixtures match your filters.</p>
+      </motion.div>
+
+      {loading ? (
+        <SkeletonList count={8} />
+      ) : fixtures.length > 0 ? (
+        <div className="space-y-2">
+          {fixtures.map((f, i) => (
+            <motion.div
+              key={f.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: Math.min(i * 0.03, 0.5) }}
+            >
+              <MatchCard fixture={f} />
+            </motion.div>
+          ))}
         </div>
       ) : (
-        <>
-          <div className="space-y-2">
-            {filtered.map((fixture) => (
-              <Link
-                key={fixture.id}
-                to={`/match/${fixture.id}`}
-                className="flex items-center gap-4 rounded-lg border border-carbon-elevated bg-carbon p-4 transition-colors hover:border-cyan-pulse/30 hover:bg-carbon-elevated"
-              >
-                <div className="min-w-[140px] text-xs text-gray-500">
-                  <div>{formatDate(fixture.date)}</div>
-                  <div>{fixture.league.name}</div>
-                </div>
-                <div className="flex flex-1 items-center gap-3">
-                  <span className="font-medium text-white">
-                    {fixture.homeTeam.shortName || fixture.homeTeam.name}
-                  </span>
-                  <span className="text-gray-600">vs</span>
-                  <span className="font-medium text-white">
-                    {fixture.awayTeam.shortName || fixture.awayTeam.name}
-                  </span>
-                </div>
-                <div className="text-sm text-gray-500 w-20 text-right">
-                  {formatScore(fixture.homeScore, fixture.awayScore)}
-                </div>
-                <div className="w-16 text-right font-heading text-sm font-bold text-cyan-pulse">
-                  {fixture.predictions.length > 0
-                    ? formatConfidence(
-                        Math.max(
-                          ...fixture.predictions.map((p) => p.confidence),
-                        ),
-                      )
-                    : "—"}
-                </div>
-              </Link>
-            ))}
-          </div>
+        <EmptyState
+          title="No fixtures found"
+          description="Try adjusting your filters or date range."
+        />
+      )}
 
-          {totalPages > 1 && (
-            <div className="mt-6 flex items-center justify-center gap-2">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-                className="rounded-md border border-carbon-elevated bg-carbon px-3 py-1.5 text-sm text-gray-400 hover:bg-carbon-elevated disabled:opacity-30"
-              >
-                ← Prev
-              </button>
-              <span className="text-sm text-gray-500">
-                Page {page} of {totalPages}
-              </span>
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page === totalPages}
-                className="rounded-md border border-carbon-elevated bg-carbon px-3 py-1.5 text-sm text-gray-400 hover:bg-carbon-elevated disabled:opacity-30"
-              >
-                Next →
-              </button>
-            </div>
-          )}
-        </>
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-3 pt-2">
+          <button
+            onClick={() => setParam("page", String(page - 1))}
+            disabled={page <= 1}
+            className="btn-secondary disabled:opacity-30"
+          >
+            Prev
+          </button>
+          <span className="text-sm text-gray-500">
+            Page {page} of {totalPages}
+          </span>
+          <button
+            onClick={() => setParam("page", String(page + 1))}
+            disabled={page >= totalPages}
+            className="btn-secondary disabled:opacity-30"
+          >
+            Next
+          </button>
+        </div>
       )}
     </div>
   );

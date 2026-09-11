@@ -54,6 +54,28 @@ fixturesRouter.get("/", async (req, res) => {
   res.json({ fixtures, total, limit, offset });
 });
 
+fixturesRouter.get("/today", async (req, res) => {
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const fixtures = await prisma.fixture.findMany({
+    where: {
+      date: { gte: today, lt: tomorrow },
+      status: { not: "cancelled" },
+    },
+    orderBy: { date: "asc" },
+    include: {
+      league: true,
+      homeTeam: true,
+      awayTeam: true,
+      predictions: true,
+    },
+  });
+
+  res.json(fixtures);
+});
+
 fixturesRouter.get("/:id", async (req, res) => {
   const fixture = await prisma.fixture.findUnique({
     where: { id: parseInt(req.params.id) },

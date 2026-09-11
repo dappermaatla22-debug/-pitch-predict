@@ -22,6 +22,8 @@ export const api = {
     },
     get: (id: number) =>
       fetchJSON<import("../types/index.js").Fixture>(`/fixtures/${id}`),
+    today: () =>
+      fetchJSON<import("../types/index.js").Fixture[]>("/fixtures/today"),
   },
   teams: {
     search: (q: string) =>
@@ -50,6 +52,23 @@ export const api = {
         `/predictions/top${qs}`,
       );
     },
+    bestPicks: (date?: string, limit?: number) => {
+      const params = new URLSearchParams();
+      if (date) params.set("date", date);
+      if (limit) params.set("limit", String(limit));
+      const qs = params.toString() ? `?${params.toString()}` : "";
+      return fetchJSON<import("../types/index.js").BestPick[]>(
+        `/predictions/best-picks${qs}`,
+      );
+    },
+    accuracy: () =>
+      fetchJSON<{
+        total: number;
+        withResults: number;
+        correct: number;
+        accuracy: number;
+        results: { wasCorrect: boolean; _count: number }[];
+      }>("/predictions/accuracy"),
     byFixture: (fixtureId: number) =>
       fetchJSON<import("../types/index.js").Prediction[]>(
         `/predictions/fixture/${fixtureId}`,

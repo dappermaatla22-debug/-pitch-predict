@@ -504,7 +504,7 @@ export async function generateAllPredictions(leagueId?: number): Promise<void> {
   await calculateTeamRatings(leagueId);
 
   // Load ALL data in bulk queries (not per-fixture)
-  const where: any = { status: "finished", homeScore: { not: null }, awayScore: { not: null } };
+  const where: any = { status: { in: ["finished", "upcoming"] } };
   if (leagueId) where.leagueId = leagueId;
 
   const fixtures = await prisma.fixture.findMany({
@@ -531,7 +531,6 @@ export async function generateAllPredictions(leagueId?: number): Promise<void> {
 
   for (const f of fixtures) {
     if (!f.homeTeam || !f.awayTeam) continue;
-    if (f.homeScore === null || f.awayScore === null) continue;
 
     const leagueAvg = leagueAvgCache.get(f.leagueId) || { homeGoals: 1.5, awayGoals: 1.1 };
     const home = f.homeTeam;

@@ -3,8 +3,19 @@ import { prisma } from "../lib/prisma.js";
 import { LEAGUE_REGISTRY } from "../config/leagues.js";
 import { scrapeSeason } from "../services/scraper/wikipedia.js";
 
+function getCurrentSeason(): string {
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const year = now.getFullYear();
+  if (month >= 7) {
+    return `${year}\u2013${year + 1}`;
+  } else {
+    return `${year - 1}\u2013${year}`;
+  }
+}
+
 async function main() {
-  const targetSeason = process.argv[2] || "2024–25";
+  const targetSeason = process.argv[2] || getCurrentSeason();
 
   console.log(`=== Wikipedia Fixture Scraper (Season: ${targetSeason}) ===\n`);
 

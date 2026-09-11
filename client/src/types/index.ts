@@ -83,3 +83,18 @@ export interface PredictionResult {
   wasCorrect: boolean;
   checkedAt: string;
 }
+
+export interface BestPick {
+  fixture: {
+    id: number;
+    date: string;
+    status: string;
+    homeScore: number | null;
+    awayScore: number | null;
+    matchday: number | null;
+  };
+  homeTeam: { id: number; name: string; shortName: string | null; logoUrl: string | null };
+  awayTeam: { id: number; name: string; shortName: string | null; logoUrl: string | null };
+  league: { id: number; name: string; slug: string; logoUrl: string | null };
+  prediction: Prediction;
+}

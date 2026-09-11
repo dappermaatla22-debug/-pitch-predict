@@ -1,170 +1,222 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { api } from "../lib/api.ts";
-import { formatDate, formatScore } from "../lib/format.ts";
-import type { Team as TeamType, Fixture } from "../types/index.ts";
+import { motion } from "framer-motion";
+import { api } from "../lib/api";
+import TeamLogo from "../components/TeamLogo";
+import ConfidenceBar from "../components/ConfidenceBar";
+import EmptyState from "../components/EmptyState";
+import { SkeletonList } from "../components/LoadingSkeleton";
+import type { Team as TeamType, Fixture } from "../types";
 
 export default function Team() {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams();
   const [team, setTeam] = useState<TeamType | null>(null);
-  const [form, setForm] = useState<Fixture[]>([]);
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!id) return;
-    const tid = parseInt(id);
-    Promise.all([
-      api.teams.get(tid),
-      api.teams.form(tid, 10),
-      api.teams.fixtures(tid),
-    ])
-      .then(([t, f, fx]) => {
+    const teamId = parseInt(id);
+    Promise.all([api.teams.get(teamId), api.teams.fixtures(teamId)])
+      .then(([t, f]) => {
         setTeam(t);
-        setForm(f);
-        setFixtures(fx);
+        setFixtures(f);
+        setLoading(false);
       })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+      .catch(() => setLoading(false));
   }, [id]);
 
   if (loading) {
     return (
       <div className="space-y-4">
-        <div className="h-24 animate-pulse rounded-lg bg-carbon-elevated" />
-        <div className="h-48 animate-pulse rounded-lg bg-carbon-elevated" />
+        <div className="skeleton h-6 w-32" />
+        <div className="glass-card p-6 flex items-center gap-4">
+          <div className="skeleton h-20 w-20 rounded-full" />
+          <div className="space-y-2">
+            <div className="skeleton h-5 w-40" />
+            <div className="skeleton h-3 w-28" />
+          </div>
+        </div>
+        <SkeletonList count={3} />
       </div>
     );
   }
 
   if (!team) {
     return (
-      <div className="rounded-lg border border-carbon-elevated bg-carbon p-12 text-center">
-        <p className="text-gray-500">Team not found.</p>
-      </div>
+      <EmptyState title="Team not found" description="This team may have been removed." />
     );
   }
 
+  const recentResults = fixtures
+    .filter((f) => f.status === "finished" && f.homeScore !== null)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 10);
+
+  function getResult(f: Fixture): "W" | "D" | "L" {
+    if (f.homeScore === null || f.awayScore === null) return "D";
+    if (f.homeTeamId === team!.id) {
+      if (f.homeScore > f.awayScore) return "W";
+      if (f.homeScore < f.awayScore) return "L";
+    } else {
+      if (f.awayScore > f.homeScore) return "W";
+      if (f.awayScore < f.homeScore) return "L";
+    }
+    return "D";
+  }
+
+  const formColors = { W: "bg-win text-white", D: "bg-draw text-midnight", L: "bg-loss text-white" };
+
   return (
     <div className="space-y-6">
-      <Link to="/fixtures" className="text-sm text-cyan-pulse hover:underline">
-        ← Back
+      <Link
+        to="/fixtures"
+        className="inline-flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-cyan-pulse"
+      >
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+        </svg>
+        Back
       </Link>
 
-      <div className="rounded-lg border border-carbon-elevated bg-carbon p-6">
-        <h2 className="font-heading text-2xl font-bold text-white">
-          {team.name}
-        </h2>
-        {team.league && (
-          <p className="text-sm text-gray-500">
-            {team.league.name} · {team.country}
-          </p>
-        )}
-
-        {team.attackRating !== 1.0 && (
-          <div className="mt-4 grid grid-cols-3 gap-3">
-            <div className="rounded-md bg-carbon-elevated p-3 text-center">
-              <div className="text-xs text-gray-500 mb-1">Attack</div>
-              <div className={`font-heading text-lg font-bold ${
-                team.attackRating > 1.2 ? "text-emerald-400" : team.attackRating < 0.8 ? "text-red-400" : "text-gray-300"
-              }`}>
-                {(team.attackRating * 100).toFixed(0)}
-              </div>
-            </div>
-            <div className="rounded-md bg-carbon-elevated p-3 text-center">
-              <div className="text-xs text-gray-500 mb-1">Defense</div>
-              <div className={`font-heading text-lg font-bold ${
-                team.defenseRating < 0.8 ? "text-emerald-400" : team.defenseRating > 1.2 ? "text-red-400" : "text-gray-300"
-              }`}>
-                {(team.defenseRating * 100).toFixed(0)}
-              </div>
-            </div>
-            <div className="rounded-md bg-carbon-elevated p-3 text-center">
-              <div className="text-xs text-gray-500 mb-1">Home Adv</div>
-              <div className={`font-heading text-lg font-bold ${
-                team.homeAdvantage > 1.1 ? "text-emerald-400" : team.homeAdvantage < 0.9 ? "text-red-400" : "text-gray-300"
-              }`}>
-                {(team.homeAdvantage * 100).toFixed(0)}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="glass-card overflow-hidden"
+      >
+        <div className="bg-gradient-to-r from-cyan-pulse/5 to-transparent p-4 sm:p-6">
+          <div className="flex items-center gap-4">
+            <TeamLogo url={team.logoUrl} name={team.name} size="xl" />
+            <div>
+              <h1 className="font-heading text-xl font-bold text-white sm:text-2xl">
+                {team.name}
+              </h1>
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-400">
+                <span>{team.country}</span>
+                {team.league && (
+                  <>
+                    <span className="text-gray-700">|</span>
+                    <span>{team.league.name}</span>
+                  </>
+                )}
+                {team.founded && (
+                  <>
+                    <span className="text-gray-700">|</span>
+                    <span>Est. {team.founded}</span>
+                  </>
+                )}
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      </motion.div>
 
-      <div className="rounded-lg border border-carbon-elevated bg-carbon p-6">
-        <h3 className="font-heading text-lg font-bold text-white mb-4">
-          Recent Form
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="glass-card p-4 sm:p-6"
+      >
+        <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-gray-400">
+          PITCH PREDICT AI Ratings
         </h3>
-        <div className="flex gap-2">
-          {form.map((f) => {
-            const isHome = f.homeTeamId === team.id;
-            const goalsFor = isHome ? f.homeScore : f.awayScore;
-            const goalsAgainst = isHome ? f.awayScore : f.homeScore;
-            const won =
-              goalsFor !== null &&
-              goalsAgainst !== null &&
-              goalsFor > goalsAgainst;
-            const drawn =
-              goalsFor !== null &&
-              goalsAgainst !== null &&
-              goalsFor === goalsAgainst;
-            return (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div>
+            <div className="mb-1.5 flex items-center justify-between text-sm">
+              <span className="text-gray-400">Attack</span>
+              <span className="font-heading font-bold tabular-nums text-cyan-pulse">
+                {team.attackRating.toFixed(2)}
+              </span>
+            </div>
+            <ConfidenceBar value={Math.min(team.attackRating / 2, 1)} size="lg" showLabel={false} />
+          </div>
+          <div>
+            <div className="mb-1.5 flex items-center justify-between text-sm">
+              <span className="text-gray-400">Defense</span>
+              <span className="font-heading font-bold tabular-nums text-cyan-pulse">
+                {team.defenseRating.toFixed(2)}
+              </span>
+            </div>
+            <ConfidenceBar value={Math.min(team.defenseRating / 2, 1)} size="lg" showLabel={false} />
+          </div>
+          <div>
+            <div className="mb-1.5 flex items-center justify-between text-sm">
+              <span className="text-gray-400">Home Advantage</span>
+              <span className="font-heading font-bold tabular-nums text-cyan-pulse">
+                {team.homeAdvantage.toFixed(2)}
+              </span>
+            </div>
+            <ConfidenceBar value={Math.min(team.homeAdvantage / 2, 1)} size="lg" showLabel={false} />
+          </div>
+        </div>
+      </motion.div>
+
+      {recentResults.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <h3 className="mb-3 font-heading text-sm font-semibold text-gray-300">
+            Recent Form
+          </h3>
+          <div className="flex gap-1.5 mb-4">
+            {recentResults.slice(0, 5).map((f) => (
               <div
                 key={f.id}
-                className={`flex h-10 w-10 items-center justify-center rounded-md font-heading text-sm font-bold ${
-                  won
-                    ? "bg-emerald-500/20 text-emerald-400"
-                    : drawn
-                      ? "bg-yellow-500/20 text-yellow-400"
-                      : "bg-red-500/20 text-red-400"
-                }`}
+                className={`flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold ${formColors[getResult(f)]}`}
               >
-                {won ? "W" : drawn ? "D" : "L"}
+                {getResult(f)}
               </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="rounded-lg border border-carbon-elevated bg-carbon p-6">
-        <h3 className="font-heading text-lg font-bold text-white mb-4">
-          Recent Results
-        </h3>
-        <div className="space-y-2">
-          {fixtures
-            .filter((f) => f.status === "finished")
-            .slice(0, 15)
-            .map((f) => (
-              <Link
-                key={f.id}
-                to={`/match/${f.id}`}
-                className="flex items-center gap-4 rounded-md px-3 py-2 transition-colors hover:bg-carbon-elevated"
-              >
-                <span className="text-xs text-gray-500 w-20">
-                  {formatDate(f.date)}
-                </span>
-                <span className="flex-1 text-sm text-white">
-                  {f.homeTeamId === team.id
-                    ? `vs ${f.awayTeam.shortName || f.awayTeam.name}`
-                    : `@ ${f.homeTeam.shortName || f.homeTeam.name}`}
-                </span>
-                <span className={`text-xs font-semibold ${
-                  (() => {
-                    const gf = f.homeTeamId === team.id ? f.homeScore : f.awayScore;
-                    const ga = f.homeTeamId === team.id ? f.awayScore : f.homeScore;
-                    if (gf === null || ga === null) return "text-gray-500";
-                    return gf > ga ? "text-emerald-400" : gf === ga ? "text-yellow-400" : "text-red-400";
-                  })()
-                }`}>
-                  {formatScore(f.homeScore, f.awayScore)}
-                </span>
-              </Link>
             ))}
-          {fixtures.filter((f) => f.status === "finished").length === 0 && (
-            <p className="text-gray-500 text-sm">No results yet.</p>
-          )}
-        </div>
-      </div>
+          </div>
+
+          <h3 className="mb-3 font-heading text-sm font-semibold text-gray-300">
+            Recent Results
+          </h3>
+          <div className="space-y-2">
+            {recentResults.map((f, i) => {
+              const result = getResult(f);
+              const isHome = f.homeTeamId === team.id;
+              const opponent = isHome ? f.awayTeam : f.homeTeam;
+              const scored = isHome ? f.homeScore : f.awayScore;
+              const conceded = isHome ? f.awayScore : f.homeScore;
+
+              return (
+                <motion.div
+                  key={f.id}
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                >
+                  <Link
+                    to={`/match/${f.id}`}
+                    className="glass-card-interactive flex items-center gap-3 p-3"
+                  >
+                    <div
+                      className={`flex h-7 w-7 items-center justify-center rounded-md text-xs font-bold ${formColors[result]}`}
+                    >
+                      {result}
+                    </div>
+                    <TeamLogo url={opponent.logoUrl} name={opponent.name} size="sm" />
+                    <div className="min-w-0 flex-1">
+                      <span className="text-sm text-gray-200">
+                        {isHome ? "vs" : "@"} {opponent.shortName || opponent.name}
+                      </span>
+                    </div>
+                    <span className="font-heading text-sm font-bold tabular-nums text-white">
+                      {scored} - {conceded}
+                    </span>
+                    <span className="text-[11px] text-gray-500">
+                      {new Date(f.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                    </span>
+                  </Link>
+                </motion.div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 }
